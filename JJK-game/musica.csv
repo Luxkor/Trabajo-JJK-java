@@ -1,8 +1,17 @@
-# Catálogo musical del juego JJK
-# Separador: |
+# musica.csv — Catálogo de música del juego JJK
+# Separador: | (pipe)
 # Columnas: titulo | artista | contexto | archivo
-# 'archivo' es el nombre del WAV dentro de assets/music/
-# Si 'archivo' está vacío, solo se mostrará el anuncio en consola sin audio real.
+#
+#   titulo   → Nombre que aparecerá en el menú del juego.
+#   artista  → Nombre del artista o banda.
+#   contexto → Descripción libre (temporada, arco, mood...). Puede dejarse vacío.
+#   archivo  → Nombre exacto del fichero WAV dentro de assets/music/
+#              Si se deja vacío, la pista aparece en el menú pero no reproduce audio.
+#
+# EJEMPLO (quita el # para activar):
+# Mi cancion favorita|Artista|Descripcion opcional|nombre_del_archivo.wav
+#
+# Añade aquí tus pistas:
 titulo|contexto|archivo
 Judas|Gojo vs Sukuna|JUDAS.wav
 Aizo|Opening temporada 3|AIZO.wav

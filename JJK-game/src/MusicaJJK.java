@@ -60,7 +60,7 @@ public abstract class MusicaJJK {
         @Override
         public String toString() {
             return NEGRITA + titulo + RESET + " — " + artista +
-                   AZUL + "  [" + contexto + "]" + RESET;
+                    AZUL + "  [" + contexto + "]" + RESET;
         }
     }
 
@@ -76,49 +76,61 @@ public abstract class MusicaJJK {
     // ── Carga del catálogo ────────────────────────────────────────────
 
     /**
-     * Carga el catálogo desde musica.csv.
-     * Si el archivo no existe o falla, se usa el catálogo de respaldo.
-     * Formato CSV: titulo|artista|contexto|archivo  (cabecera en línea 1).
+     * Carga el catálogo EXCLUSIVAMENTE desde musica.csv.
+     * No existe lista de canciones hardcodeada: el CSV es la única fuente de verdad.
+     *
+     * Si el archivo no existe o está vacío, la lista de pistas queda vacía y el
+     * menú mostrará solo la opción "Sin música", sin lanzar ningún error.
+     *
+     * Formato CSV (separador '|', primera línea no comentada = cabecera ignorada):
+     *   titulo | artista | contexto | archivo
      */
     protected void inicializarPistas() {
-        try {
-            cargarDesdeCSV(RUTA_CSV_MUSICA);
-        } catch (Exception e) {
-            pistas.clear();
-            cargarHardcoded();
+        File csv = new File(RUTA_CSV_MUSICA);
+        if (!csv.exists()) {
+            // CSV no creado todavía — situación normal en un proyecto nuevo
+            return;
         }
-    }
+        try (BufferedReader br = new BufferedReader(
+                new InputStreamReader(new FileInputStream(csv),
+                        java.nio.charset.StandardCharsets.UTF_8))) {
 
-    private void cargarDesdeCSV(String ruta) throws Exception {
-        BufferedReader br = new BufferedReader(
-                new InputStreamReader(new FileInputStream(ruta),
-                        java.nio.charset.StandardCharsets.UTF_8));
-        String linea;
-        boolean primeraLinea = true;
+            String linea;
+            boolean primeraLinea = true;
 
-        while ((linea = br.readLine()) != null) {
-            linea = linea.trim();
-            if (linea.isEmpty() || linea.startsWith("#")) continue;
-            if (primeraLinea) { primeraLinea = false; continue; }  // saltar cabecera
+            while ((linea = br.readLine()) != null) {
+                linea = linea.trim();
+                if (linea.isEmpty() || linea.startsWith("#")) continue;
+                if (primeraLinea) { primeraLinea = false; continue; }   // saltar cabecera
 
-            String[] f = linea.split("\\|", -1);
-            if (f.length < 4) {
-                br.close();
-                throw new Exception("Línea inválida en musica.csv: " + linea);
+                String[] f = linea.split("\\|", -1);
+                if (f.length < 3) {
+                    System.out.println("  " + AMARILLO
+                            + "  ⚠ Línea ignorada en musica.csv (se necesitan al menos 3 columnas): " + linea + RESET);
+                    continue;
+                }
+                // Acepta dos formatos:
+                //   3 columnas: titulo | contexto | archivo       (sin artista)
+                //   4 columnas: titulo | artista  | contexto | archivo
+                final String titulo, artista, contexto, archivo;
+                if (f.length >= 4) {
+                    titulo   = f[0].trim();
+                    artista  = f[1].trim();
+                    contexto = f[2].trim();
+                    archivo  = f[3].trim();
+                } else {
+                    titulo   = f[0].trim();
+                    artista  = "";
+                    contexto = f[1].trim();
+                    archivo  = f[2].trim();
+                }
+                pistas.add(new Pista(titulo, artista, contexto, archivo));
             }
-            pistas.add(new Pista(f[0].trim(), f[1].trim(), f[2].trim(), f[3].trim()));
-        }
-        br.close();
-        if (pistas.isEmpty()) throw new Exception("musica.csv no contiene pistas válidas.");
-    }
 
-    /** Catálogo de respaldo usado si musica.csv no está disponible. */
-    private void cargarHardcoded() {
-        pistas.add(new Pista("Kaikai Kitan",    "Eve",            "Opening 1 — Temporada 1",       "01_kaikai_kitan.wav"));
-        pistas.add(new Pista("SPECIALZ",         "King Gnu",       "Opening Arco de Shibuya",       "02_specialz.wav"));
-        pistas.add(new Pista("Ao no Sumika",     "Tatsuya Kitani", "Opening Inventario Oculto",     "03_ao_no_sumika.wav"));
-        pistas.add(new Pista("Lost in Paradise", "ALI ft. AKLO",   "Ending 1 — Temporada 1",        "04_lost_in_paradise.wav"));
-        pistas.add(new Pista("AIZO",             "King GNU",       "Opening 5 — Temporada 3",       "05_aizo.wav"));
+        } catch (IOException e) {
+            System.out.println("  " + AMARILLO
+                    + "  ⚠ No se pudo leer musica.csv: " + e.getMessage() + RESET);
+        }
     }
 
     // ── Contrato ──────────────────────────────────────────────────────
@@ -140,6 +152,17 @@ public abstract class MusicaJJK {
     public void mostrarMenuSeleccion(Scanner sc) {
         System.out.println("\n  " + CYAN_INT + NEGRITA + "── BANDA SONORA — SELECCIÓN ──" + RESET);
         System.out.println("  " + AZUL + "═".repeat(50) + RESET);
+
+        if (pistas.isEmpty()) {
+            System.out.println("  " + AMARILLO + "  No hay canciones configuradas." + RESET);
+            System.out.println("  " + AMARILLO + "  Edita musica.csv para añadir las tuyas." + RESET);
+            System.out.println("  " + AMARILLO + "  Consulta assets/music/LEEME.md para instrucciones." + RESET);
+            System.out.println("  " + AZUL + "═".repeat(50) + RESET);
+            System.out.print("  Pulsa Enter para volver...");
+            sc.nextLine();
+            return;
+        }
+
         for (int i = 0; i < pistas.size(); i++) {
             String marcador = (pistaSeleccionada == i + 1) ? VERDE + " ▶ " + RESET : "   ";
             System.out.println("  " + marcador + AMARILLO + (i + 1) + "." + RESET + " " + pistas.get(i));
