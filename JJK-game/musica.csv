@@ -3,9 +3,9 @@
 # Columnas: titulo | artista | contexto | archivo
 # 'archivo' es el nombre del WAV dentro de assets/music/
 # Si 'archivo' está vacío, solo se mostrará el anuncio en consola sin audio real.
-titulo|artista|contexto|archivo
-Kaikai Kitan|Eve|Opening 1 — Temporada 1|01_kaikai_kitan.wav
-SPECIALZ|King Gnu|Opening Arco de Shibuya|02_specialz.wav
-Ao no Sumika|Tatsuya Kitani|Opening Inventario Oculto|03_ao_no_sumika.wav
-Lost in Paradise|ALI ft. AKLO|Ending 1 — Temporada 1|04_lost_in_paradise.wav
-AIZO|King GNU|Opening 5 — Temporada 3|05_aizo.wav
+titulo|contexto|archivo
+Judas|Gojo vs Sukuna|JUDAS.wav
+Aizo|Opening temporada 3|AIZO.wav
+Malevolent Shrine|Sukuna vs Mahoraga|MALEVOLENT_SHRINE.wav
+Ripple|Expansion de dominio triple|RIPPLE.wav
+SpecialZ|Opening arco de shibuya|SPECIALZ.wav

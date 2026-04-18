@@ -60,7 +60,7 @@ public abstract class MusicaJJK {
         @Override
         public String toString() {
             return NEGRITA + titulo + RESET + " — " + artista +
-                    AZUL + "  [" + contexto + "]" + RESET;
+                   AZUL + "  [" + contexto + "]" + RESET;
         }
     }
 

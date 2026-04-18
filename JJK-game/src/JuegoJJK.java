@@ -195,7 +195,7 @@ public class JuegoJJK {
             int     energia = Integer.parseInt(f[3].trim());
 
             Personaje pers = esMald ? new Maldicion(nombre, vida, energia)
-                    : new Hechicero(nombre, vida, energia);
+                                    : new Hechicero(nombre, vida, energia);
 
             // Habilidades (columnas 4-33)
             for (int i = 0; i < 5; i++) {
@@ -255,24 +255,24 @@ public class JuegoJJK {
 
         // Respaldo hardcoded si el CSV falla
         crimenesTribunal = new String[][]{
-                {"uso no autorizado de técnica maldita en zona residencial de Shibuya",
-                        "La técnica fue activada de manera involuntaria al contacto con una maldición de grado 2 que atacó a civiles.", "1"},
-                {"participación en misión de exorcismo sin acreditación vigente del Consejo de Hechiceros",
-                        "La acreditación estaba en proceso de renovación y actué bajo orden verbal de un supervisor de rango superior.", "1"},
-                {"destrucción de infraestructura del Colegio Técnico de Magia de Tokio durante entrenamiento",
-                        "El daño fue consecuencia directa de un ataque no provocado por parte de otro alumno; actué en defensa propia.", "1"},
-                {"colaboración con el Plan de Vuelta de Kenjaku para suprimir la barrera de Shibuya",
-                        "Fui manipulado mediante técnica de sustitución de cuerpo; mis acciones no respondían a mi voluntad.", "2"},
-                {"liberación deliberada del contenedor de maldición especial Ryomen Sukuna durante combate activo",
-                        "El contenedor fue dañado por el ataque de una maldición de grado especial, no por acción propia.", "2"},
-                {"traición al Colegio Técnico de Magia al facilitar información clasificada al Clan Kamo disidente",
-                        "La información fue transmitida bajo coerción extrema mientras mis compañeros estaban retenidos como rehenes.", "2"},
-                {"masacre del personal del Hospital Eisei durante el incidente de Shibuya bajo el control de Sukuna",
-                        "El cuerpo fue tomado por Ryomen Sukuna de forma involuntaria; no existe consciencia ni intencionalidad de mi parte en dichos actos.", "3"},
-                {"conspiración con Kenjaku para ejecutar el Gran Juego y someter a la humanidad a la evolución forzada mediante Tengen",
-                        "No existe prueba física que demuestre mi participación activa; las órdenes vinieron de una entidad que habitó mi cuerpo sin consentimiento.", "3"},
-                {"apertura del Juego de la Culpa que resultó en la muerte de más de mil hechiceros certificados en la Colonia de Tokio",
-                        "La acusación carece de testigos supervivientes vinculantes y toda evidencia fue recopilada dentro del propio Juego, lo que invalida su valor legal.", "3"}
+            {"uso no autorizado de técnica maldita en zona residencial de Shibuya",
+             "La técnica fue activada de manera involuntaria al contacto con una maldición de grado 2 que atacó a civiles.", "1"},
+            {"participación en misión de exorcismo sin acreditación vigente del Consejo de Hechiceros",
+             "La acreditación estaba en proceso de renovación y actué bajo orden verbal de un supervisor de rango superior.", "1"},
+            {"destrucción de infraestructura del Colegio Técnico de Magia de Tokio durante entrenamiento",
+             "El daño fue consecuencia directa de un ataque no provocado por parte de otro alumno; actué en defensa propia.", "1"},
+            {"colaboración con el Plan de Vuelta de Kenjaku para suprimir la barrera de Shibuya",
+             "Fui manipulado mediante técnica de sustitución de cuerpo; mis acciones no respondían a mi voluntad.", "2"},
+            {"liberación deliberada del contenedor de maldición especial Ryomen Sukuna durante combate activo",
+             "El contenedor fue dañado por el ataque de una maldición de grado especial, no por acción propia.", "2"},
+            {"traición al Colegio Técnico de Magia al facilitar información clasificada al Clan Kamo disidente",
+             "La información fue transmitida bajo coerción extrema mientras mis compañeros estaban retenidos como rehenes.", "2"},
+            {"masacre del personal del Hospital Eisei durante el incidente de Shibuya bajo el control de Sukuna",
+             "El cuerpo fue tomado por Ryomen Sukuna de forma involuntaria; no existe consciencia ni intencionalidad de mi parte en dichos actos.", "3"},
+            {"conspiración con Kenjaku para ejecutar el Gran Juego y someter a la humanidad a la evolución forzada mediante Tengen",
+             "No existe prueba física que demuestre mi participación activa; las órdenes vinieron de una entidad que habitó mi cuerpo sin consentimiento.", "3"},
+            {"apertura del Juego de la Culpa que resultó en la muerte de más de mil hechiceros certificados en la Colonia de Tokio",
+             "La acusación carece de testigos supervivientes vinculantes y toda evidencia fue recopilada dentro del propio Juego, lo que invalida su valor legal.", "3"}
         };
         System.out.println(AMARILLO + "  ⚠ crimenes.csv no encontrado; usando crímenes de respaldo." + RESET);
     }
