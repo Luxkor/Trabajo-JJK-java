@@ -2,36 +2,13 @@ import java.util.*;
 import java.io.*;
 import javax.sound.sampled.*;
 
-/**
- * Clase abstracta que modela el sistema de música del juego.
- *
- * Se elige una clase ABSTRACTA porque:
- *  - Necesita mantener estado (lista de pistas, pista seleccionada).
- *  - Impone el contrato reproducir() que cada subclase cumple de forma distinta.
- *  - Permite añadir en el futuro más subclases sin tocar JuegoJJK.
- *
- * El catálogo de pistas se carga desde musica.csv (misma carpeta raíz
- * que personajes.csv). Si el CSV falta, se usa una lista de respaldo.
- *
- * Subclases disponibles:
- *  - MusicaConsola : solo anuncia la pista en pantalla (sin audio real).
- *  - MusicaAudio   : anuncia la pista Y reproduce el WAV en bucle mediante
- *                    javax.sound.sampled (parte del JDK estándar, sin dependencias externas).
- */
 public abstract class MusicaJJK {
 
     // ── Rutas ─────────────────────────────────────────────────────────
-    private static final String RUTA_CSV_MUSICA = "musica.csv";
+    private static final String RUTA_CSV      = "data" + File.separator + "musica.csv";
+    public  static final String CARPETA_AUDIO = "assets" + File.separator + "music" + File.separator;
 
-    /**
-     * Carpeta donde deben colocarse los archivos WAV.
-     * Relativa al directorio de trabajo del proyecto (raíz del módulo en IntelliJ).
-     * Documenta la ubicación exacta para el desarrollador.
-     */
-    public static final String CARPETA_MUSICA =
-            "assets" + File.separator + "music" + File.separator;
-
-    // ── Colores ANSI ──────────────────────────────────────────────────
+    // ── Colores ───────────────────────────────────────────────────────
     private static final String RESET       = "\u001B[0m";
     private static final String NEGRITA     = "\u001B[1m";
     private static final String MAGENTA_INT = "\u001B[95m";
@@ -45,246 +22,134 @@ public abstract class MusicaJJK {
 
     // ── Modelo de una pista ───────────────────────────────────────────
     protected static class Pista {
-        final String titulo;
-        final String artista;
-        final String contexto;
-        final String archivo;   // nombre del WAV en CARPETA_MUSICA; vacío = solo anuncio
-
+        final String titulo, artista, contexto, archivo;
         Pista(String titulo, String artista, String contexto, String archivo) {
-            this.titulo   = titulo;
-            this.artista  = artista;
-            this.contexto = contexto;
-            this.archivo  = (archivo != null) ? archivo.trim() : "";
+            this.titulo = titulo.trim(); this.artista = artista.trim();
+            this.contexto = contexto.trim(); this.archivo = archivo != null ? archivo.trim() : "";
         }
-
         @Override
         public String toString() {
-            return NEGRITA + titulo + RESET + " — " + artista +
-                    AZUL + "  [" + contexto + "]" + RESET;
+            String parte = artista.isEmpty() ? "" : " - " + artista;
+            return NEGRITA + titulo + RESET + parte + AZUL + "  [" + contexto + "]" + RESET;
         }
     }
 
-    // ── Estado compartido ─────────────────────────────────────────────
     protected final List<Pista> pistas = new ArrayList<>();
-    protected int pistaSeleccionada = 0;   // 0 = sin música
+    protected int pistaSeleccionada = 0;
 
-    // ── Constructor ───────────────────────────────────────────────────
-    protected MusicaJJK() {
-        inicializarPistas();
-    }
+    protected MusicaJJK() { cargarCatalogo(); }
 
-    // ── Carga del catálogo ────────────────────────────────────────────
-
-    /**
-     * Carga el catálogo EXCLUSIVAMENTE desde musica.csv.
-     * No existe lista de canciones hardcodeada: el CSV es la única fuente de verdad.
-     *
-     * Si el archivo no existe o está vacío, la lista de pistas queda vacía y el
-     * menú mostrará solo la opción "Sin música", sin lanzar ningún error.
-     *
-     * Formato CSV (separador '|', primera línea no comentada = cabecera ignorada):
-     *   titulo | artista | contexto | archivo
-     */
-    protected void inicializarPistas() {
-        File csv = new File(RUTA_CSV_MUSICA);
-        if (!csv.exists()) {
-            // CSV no creado todavía — situación normal en un proyecto nuevo
-            return;
-        }
+    private void cargarCatalogo() {
+        File csv = new File(RUTA_CSV);
+        if (!csv.exists()) return;
         try (BufferedReader br = new BufferedReader(
-                new InputStreamReader(new FileInputStream(csv),
-                        java.nio.charset.StandardCharsets.UTF_8))) {
-
-            String linea;
-            boolean primeraLinea = true;
-
+                new InputStreamReader(new FileInputStream(csv), java.nio.charset.StandardCharsets.UTF_8))) {
+            String linea; boolean primera = true;
             while ((linea = br.readLine()) != null) {
                 linea = linea.trim();
                 if (linea.isEmpty() || linea.startsWith("#")) continue;
-                if (primeraLinea) { primeraLinea = false; continue; }   // saltar cabecera
-
+                if (primera) { primera = false; continue; }
                 String[] f = linea.split("\\|", -1);
-                if (f.length < 3) {
-                    System.out.println("  " + AMARILLO
-                            + "  ⚠ Línea ignorada en musica.csv (se necesitan al menos 3 columnas): " + linea + RESET);
-                    continue;
-                }
-                // Acepta dos formatos:
-                //   3 columnas: titulo | contexto | archivo       (sin artista)
-                //   4 columnas: titulo | artista  | contexto | archivo
+                if (f.length < 3) { System.out.println("  Linea ignorada en musica.csv: " + linea); continue; }
                 final String titulo, artista, contexto, archivo;
-                if (f.length >= 4) {
-                    titulo   = f[0].trim();
-                    artista  = f[1].trim();
-                    contexto = f[2].trim();
-                    archivo  = f[3].trim();
-                } else {
-                    titulo   = f[0].trim();
-                    artista  = "";
-                    contexto = f[1].trim();
-                    archivo  = f[2].trim();
-                }
+                if (f.length >= 4) { titulo = f[0].trim(); artista = f[1].trim(); contexto = f[2].trim(); archivo = f[3].trim(); }
+                else               { titulo = f[0].trim(); artista = "";           contexto = f[1].trim(); archivo = f[2].trim(); }
                 pistas.add(new Pista(titulo, artista, contexto, archivo));
             }
-
         } catch (IOException e) {
-            System.out.println("  " + AMARILLO
-                    + "  ⚠ No se pudo leer musica.csv: " + e.getMessage() + RESET);
+            System.out.println("  No se pudo leer musica.csv: " + e.getMessage());
         }
     }
 
-    // ── Contrato ──────────────────────────────────────────────────────
-
-    /**
-     * Reproduce (o anuncia) la pista seleccionada.
-     * Solo debe llamarse al INICIAR un combate.
-     */
     public abstract void reproducir();
-
-    /**
-     * Detiene la reproducción activa (si existe).
-     * Implementación por defecto vacía; MusicaAudio la sobreescribe.
-     */
-    public void detener() { /* no-op por defecto */ }
-
-    // ── Menú de selección ─────────────────────────────────────────────
+    public void detener() {}
 
     public void mostrarMenuSeleccion(Scanner sc) {
-        System.out.println("\n  " + CYAN_INT + NEGRITA + "── BANDA SONORA — SELECCIÓN ──" + RESET);
-        System.out.println("  " + AZUL + "═".repeat(50) + RESET);
-
+        System.out.println("\n  " + CYAN_INT + NEGRITA + "-- BANDA SONORA --" + RESET);
+        System.out.println("  " + AZUL + "=".repeat(52) + RESET);
         if (pistas.isEmpty()) {
             System.out.println("  " + AMARILLO + "  No hay canciones configuradas." + RESET);
-            System.out.println("  " + AMARILLO + "  Edita musica.csv para añadir las tuyas." + RESET);
-            System.out.println("  " + AMARILLO + "  Consulta assets/music/LEEME.md para instrucciones." + RESET);
-            System.out.println("  " + AZUL + "═".repeat(50) + RESET);
-            System.out.print("  Pulsa Enter para volver...");
-            sc.nextLine();
-            return;
+            System.out.println("  " + AMARILLO + "  Edita data/musica.csv para aniadirlas." + RESET);
+            System.out.println("  " + AMARILLO + "  Consulta assets/music/LEEME.md." + RESET);
+            System.out.println("  " + AZUL + "=".repeat(52) + RESET);
+            System.out.print("  Pulsa Enter para volver..."); sc.nextLine(); return;
         }
-
         for (int i = 0; i < pistas.size(); i++) {
-            String marcador = (pistaSeleccionada == i + 1) ? VERDE + " ▶ " + RESET : "   ";
-            System.out.println("  " + marcador + AMARILLO + (i + 1) + "." + RESET + " " + pistas.get(i));
+            String m = (pistaSeleccionada == i+1) ? VERDE + " > " + RESET : "   ";
+            System.out.println("  " + m + AMARILLO + (i+1) + "." + RESET + " " + pistas.get(i));
         }
-        String marcadorOff = (pistaSeleccionada == 0) ? VERDE + " ▶ " + RESET : "   ";
-        System.out.println("  " + marcadorOff + AMARILLO + (pistas.size() + 1) + "." + RESET +
-                " Sin música  " + AZUL + "[Predeterminado]" + RESET);
-        System.out.println("  " + AZUL + "═".repeat(50) + RESET);
-        System.out.print("  " + BLANCO + "▶ Elige una pista (1-" + (pistas.size() + 1) + "): " + RESET);
-
+        String mOff = (pistaSeleccionada == 0) ? VERDE + " > " + RESET : "   ";
+        System.out.println("  " + mOff + AMARILLO + (pistas.size()+1) + "." + RESET + " Sin musica  " + AZUL + "[Predeterminado]" + RESET);
+        System.out.println("  " + AZUL + "=".repeat(52) + RESET);
+        System.out.print("  " + BLANCO + "> Elige (1-" + (pistas.size()+1) + "): " + RESET);
         try {
             int sel = Integer.parseInt(sc.nextLine().trim());
             if (sel >= 1 && sel <= pistas.size()) {
                 pistaSeleccionada = sel;
-                System.out.println("  " + VERDE + "✓ Pista seleccionada: " + pistas.get(sel - 1).titulo + RESET);
-            } else if (sel == pistas.size() + 1) {
+                System.out.println("  " + VERDE + "Pista: " + pistas.get(sel-1).titulo + RESET);
+            } else if (sel == pistas.size()+1) {
                 pistaSeleccionada = 0;
-                System.out.println("  " + VERDE + "✓ Música desactivada." + RESET);
-            } else {
-                System.out.println("  " + ROJO + "Opción inválida." + RESET);
-            }
-        } catch (NumberFormatException e) {
-            System.out.println("  " + ROJO + "Entrada inválida." + RESET);
-        }
+                System.out.println("  " + VERDE + "Musica desactivada." + RESET);
+            } else { System.out.println("  " + ROJO + "Opcion invalida." + RESET); }
+        } catch (NumberFormatException e) { System.out.println("  " + ROJO + "Entrada invalida." + RESET); }
     }
 
-    public int           getPistaSeleccionada() { return pistaSeleccionada; }
-    public boolean       hayMusicaActiva()      { return pistaSeleccionada > 0; }
-    public List<Pista>   getPistas()            { return Collections.unmodifiableList(pistas); }
+    public int getPistaSeleccionada() { return pistaSeleccionada; }
+    public boolean hayMusicaActiva()  { return pistaSeleccionada > 0; }
+    public List<Pista> getPistas()    { return Collections.unmodifiableList(pistas); }
 
-    // ══════════════════════════════════════════════════════════════════
-    //  Subclase MusicaConsola — solo imprime el anuncio en pantalla.
-    //  Útil en entornos sin dispositivo de audio.
-    // ══════════════════════════════════════════════════════════════════
+    // ── MusicaConsola ─────────────────────────────────────────────────
     public static class MusicaConsola extends MusicaJJK {
         @Override
         public void reproducir() {
             if (!hayMusicaActiva()) return;
             Pista p = pistas.get(pistaSeleccionada - 1);
-            System.out.println("\n  " + MAGENTA_INT + NEGRITA +
-                    "♪♪ REPRODUCIENDO: " + p.titulo + " — " + p.artista + RESET);
+            System.out.println("\n  " + MAGENTA_INT + NEGRITA + ">> " + p.titulo
+                    + (p.artista.isEmpty() ? "" : " - " + p.artista) + RESET);
             System.out.println("  " + AZUL + "   " + p.contexto + RESET);
         }
-        // detener() heredado: no-op
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    //  Subclase MusicaAudio — anuncia la pista Y la reproduce via
-    //  javax.sound.sampled (parte del JDK estándar, solo soporta WAV).
-    //
-    //  Flujo:
-    //    1. reproducir() → anuncia en consola + abre el Clip en segundo plano.
-    //    2. El Clip hace loop continuo sin bloquear el hilo del juego.
-    //    3. detener() para y cierra el Clip al terminar el combate.
-    //
-    //  Si el archivo WAV no existe, se muestra la ruta esperada y el
-    //  juego continúa sin audio (graceful degradation).
-    // ══════════════════════════════════════════════════════════════════
+    // ── MusicaAudio ───────────────────────────────────────────────────
     public static class MusicaAudio extends MusicaJJK {
-
         private volatile Clip clipActual = null;
 
         @Override
         public void reproducir() {
             if (!hayMusicaActiva()) return;
-
             Pista p = pistas.get(pistaSeleccionada - 1);
-
-            // Anuncio en consola siempre (independiente del audio)
-            System.out.println("\n  " + MAGENTA_INT + NEGRITA +
-                    "♪♪ REPRODUCIENDO: " + p.titulo + " — " + p.artista + RESET);
+            System.out.println("\n  " + MAGENTA_INT + NEGRITA + ">> " + p.titulo
+                    + (p.artista.isEmpty() ? "" : " - " + p.artista) + RESET);
             System.out.println("  " + AZUL + "   " + p.contexto + RESET);
-
             if (p.archivo.isEmpty()) return;
-
-            File archivoWav = new File(CARPETA_MUSICA + p.archivo);
-
-            if (!archivoWav.exists()) {
-                System.out.println("  " + AMARILLO +
-                        "  ⚠ Archivo de audio no encontrado: " + archivoWav.getAbsolutePath() + RESET);
-                System.out.println("  " + AMARILLO +
-                        "  Coloca el WAV en: " + new File(CARPETA_MUSICA).getAbsolutePath() + RESET);
-                System.out.println("  " + AMARILLO +
-                        "  Consulta assets/music/LEEME.md para instrucciones." + RESET);
-                return;
+            File wav = new File(CARPETA_AUDIO + p.archivo);
+            if (!wav.exists()) {
+                System.out.println("  Archivo no encontrado: " + wav.getAbsolutePath());
+                System.out.println("  Consulta assets/music/LEEME.md para instrucciones."); return;
             }
-
             try {
-                detener(); // para cualquier clip anterior
-
-                AudioInputStream ais = AudioSystem.getAudioInputStream(archivoWav);
+                detener();
+                AudioInputStream ais = AudioSystem.getAudioInputStream(wav);
                 clipActual = AudioSystem.getClip();
                 clipActual.open(ais);
-                clipActual.loop(Clip.LOOP_CONTINUOUSLY);  // hilo demonio; no bloquea
+                clipActual.loop(Clip.LOOP_CONTINUOUSLY);
                 clipActual.start();
-                System.out.println("  " + VERDE_INT + "  ▶ Reproduciendo en bucle..." + RESET);
-
+                System.out.println("  " + VERDE_INT + "  > Reproduciendo en bucle..." + RESET);
             } catch (UnsupportedAudioFileException e) {
-                System.out.println("  " + AMARILLO +
-                        "  ⚠ Formato no soportado. Convierte el archivo a WAV (PCM 16-bit, 44100 Hz)." + RESET);
+                System.out.println("  Formato no soportado. Convierte a WAV PCM 16-bit 44100 Hz.");
             } catch (LineUnavailableException e) {
-                System.out.println("  " + AMARILLO +
-                        "  ⚠ Dispositivo de audio no disponible: " + e.getMessage() + RESET);
+                System.out.println("  Dispositivo de audio no disponible.");
             } catch (IOException e) {
-                System.out.println("  " + AMARILLO +
-                        "  ⚠ Error al leer el archivo de audio: " + e.getMessage() + RESET);
+                System.out.println("  Error al leer el archivo: " + e.getMessage());
             }
         }
 
-        /**
-         * Para y cierra el Clip activo.
-         * Llamar al terminar el combate o al salir del juego.
-         */
         @Override
         public void detener() {
-            if (clipActual != null) {
-                try {
-                    if (clipActual.isRunning()) clipActual.stop();
-                    clipActual.close();
-                } catch (Exception ignored) { /* silenciar errores al cerrar */ }
-                clipActual = null;
-            }
+            if (clipActual == null) return;
+            try { if (clipActual.isRunning()) clipActual.stop(); clipActual.close(); }
+            catch (Exception ignored) {}
+            clipActual = null;
         }
     }
 }
