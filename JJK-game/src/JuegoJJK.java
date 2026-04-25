@@ -7,6 +7,9 @@ public class JuegoJJK {
     private static final String CSV_PERSONAJES = "data" + File.separator + "personajes.csv";
     private static final String CSV_CRIMENES   = "data" + File.separator + "crimenes.csv";
 
+    // Segundos que el jugador tiene para memorizar su secuencia antes de ocultarse sola
+    private static final int SEGUNDOS_SECUENCIA = 7;
+
     // ── Estado global ─────────────────────────────────────────────────
     private static final List<Personaje> catalogo = new ArrayList<>();
     private static final Scanner sc = new Scanner(System.in);
@@ -31,22 +34,24 @@ public class JuegoJJK {
     // ── Crimenes ──────────────────────────────────────────────────────
     private static String[][] crimenes = null;
 
-    // ── Colores ANSI ──────────────────────────────────────────────────
-    static final String RESET       = "\u001B[0m";
-    static final String NEGRITA     = "\u001B[1m";
-    static final String ROJO        = "\u001B[31m";
-    static final String VERDE       = "\u001B[32m";
-    static final String AMARILLO    = "\u001B[33m";
-    static final String AZUL        = "\u001B[34m";
-    static final String MAGENTA     = "\u001B[35m";
-    static final String CYAN        = "\u001B[36m";
-    static final String BLANCO      = "\u001B[37m";
-    static final String ROJO_INT    = "\u001B[91m";
-    static final String VERDE_INT   = "\u001B[92m";
-    static final String AMARILLO_INT= "\u001B[93m";
-    static final String AZUL_INT    = "\u001B[94m";
-    static final String MAGENTA_INT = "\u001B[95m";
-    static final String CYAN_INT    = "\u001B[96m";
+    // ── Colores ANSI (delegados a Colores.java para evitar duplicación) ──
+    // ARREGLO: antes estas 15 constantes duplicaban literales ANSI hardcodeados.
+    // Ahora referencian Colores.java, que es la única fuente de verdad.
+    static final String RESET        = Colores.RESET;
+    static final String NEGRITA      = Colores.NEGRITA;
+    static final String ROJO         = Colores.ROJO;
+    static final String VERDE        = Colores.VERDE;
+    static final String AMARILLO     = Colores.AMARILLO;
+    static final String AZUL         = Colores.AZUL;
+    static final String MAGENTA      = Colores.MAGENTA;
+    static final String CYAN         = Colores.CYAN;
+    static final String BLANCO       = Colores.BLANCO;
+    static final String ROJO_INT     = Colores.ROJO_INT;
+    static final String VERDE_INT    = Colores.VERDE_INT;
+    static final String AMARILLO_INT = Colores.AMARILLO_INT;
+    static final String AZUL_INT     = Colores.AZUL_INT;
+    static final String MAGENTA_INT  = Colores.MAGENTA_INT;
+    static final String CYAN_INT     = Colores.CYAN_INT;
 
     // ═════════════════════════════════════════════════════════════════
     //  HELPERS DE UI
@@ -69,6 +74,25 @@ public class JuegoJJK {
     }
 
     static String linea(int ancho, String color) { return color + "=".repeat(ancho) + RESET; }
+
+    /**
+     * Empuja el contenido visible fuera de pantalla imprimiendo saltos de línea
+     * (funciona en cualquier entorno, incluida la consola de IntelliJ) y después
+     * intenta además limpiar el buffer con ANSI/cls para terminales reales.
+     */
+    private static void limpiarConsola() {
+        // Saltos de línea: siempre funcionan, desplazan el texto hacia arriba
+        for (int i = 0; i < 60; i++) System.out.println();
+        // Intentar limpieza real del buffer (terminal del sistema / cmd.exe)
+        try {
+            if (System.getProperty("os.name", "").toLowerCase().contains("windows")) {
+                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+            } else {
+                System.out.print("\033[H\033[2J\033[3J"); // limpia pantalla y scrollback
+                System.out.flush();
+            }
+        } catch (Exception ignored) {}
+    }
 
     private static String centrar(String s, int ancho) {
         if (s.length() >= ancho) return s.substring(0, ancho);
@@ -179,6 +203,8 @@ public class JuegoJJK {
                 p.setCuracionDisponible (parseBool(f[34]));
                 p.setPortadorHerramienta(parseBool(f[35]));
                 p.setSinEnergiaMaldita  (parseBool(f[36]));
+                // Columna 38 (índice 37): especial — retrocompatible, false si ausente
+                p.setEspecial(f.length > 37 && parseBool(f[37]));
                 catalogo.add(p); n++;
             }
             if (n == 0) throw new Exception("personajes.csv no contiene personajes validos.");
@@ -186,7 +212,7 @@ public class JuegoJJK {
         }
     }
 
-    private static void cargarCrimenes(String ruta) {
+    private static void cargarCrimenes(String ruta) throws Exception {
         List<String[]> lista = new ArrayList<>();
         try (BufferedReader br = utf8(ruta)) {
             String linea; boolean primera = true;
@@ -197,11 +223,12 @@ public class JuegoJJK {
                 String[] f = linea.split("\\|", -1);
                 if (f.length >= 3) lista.add(new String[]{ f[1].trim(), f[2].trim(), f[0].trim() });
             }
-        } catch (Exception ignored) {}
-        if (!lista.isEmpty()) {
-            crimenes = lista.toArray(new String[0][]);
-            System.out.println(VERDE_INT + "  " + lista.size() + " crimenes cargados." + RESET);
-        } else { crimenesRespaldo(); }
+        }
+        // Sin fallback: si el CSV falta o está vacío, la partida no puede iniciarse
+        if (lista.isEmpty())
+            throw new Exception("crimenes.csv no contiene crimenes validos. Comprueba el archivo en data/.");
+        crimenes = lista.toArray(new String[0][]);
+        System.out.println(VERDE_INT + "  " + lista.size() + " crimenes cargados." + RESET);
     }
 
     private static BufferedReader utf8(String r) throws FileNotFoundException {
@@ -211,20 +238,25 @@ public class JuegoJJK {
     private static boolean parseBool(String s) { return Boolean.parseBoolean(s.trim()); }
 
     // ═════════════════════════════════════════════════════════════════
-    //  SELECCION DE EQUIPO  (con columnas HP y CE)
+    //  SELECCION DE EQUIPO  (con validación de entrada)
     // ═════════════════════════════════════════════════════════════════
 
     private static List<Personaje> seleccionarEquipo(int num) {
         String jugador = (num == 1) ? nombreJ1 : nombreJ2;
         String colorJ  = (num == 1) ? CYAN : AMARILLO;
+
+        // Solo los personajes seleccionables (especial=false)
+        List<Personaje> seleccionables = new ArrayList<>();
+        for (Personaje c : catalogo) if (!c.isEspecial()) seleccionables.add(c);
+
         System.out.println("\n" + colorJ + NEGRITA
                 + "  -- SELECCION: " + jugador.toUpperCase() + " (Equipo " + num + ") --" + RESET);
         System.out.println("  " + linea(64, AZUL));
         System.out.printf("  %s%-3s %-26s %-12s %6s %6s%s%n",
                 AZUL_INT, "ID", "NOMBRE", "TIPO", "HP", "CE", RESET);
         System.out.println("  " + linea(64, AZUL));
-        for (int i = 0; i < catalogo.size(); i++) {
-            Personaje c = catalogo.get(i);
+        for (int i = 0; i < seleccionables.size(); i++) {
+            Personaje c = seleccionables.get(i);
             boolean esMald = c instanceof Maldicion;
             String ct = esMald ? ROJO : VERDE;
             String tipo = esMald ? "[Maldicion] " : "[Hechicero] ";
@@ -236,8 +268,24 @@ public class JuegoJJK {
                     ct, tipo, RESET, VERDE_INT, c.getMaxVida(), RESET, AZUL_INT, ce);
         }
         System.out.println("  " + linea(64, AZUL));
-        System.out.print("  " + colorJ + "[" + jugador + "] ID del personaje: " + RESET);
-        Personaje sel = catalogo.get(parseInt(sc.nextLine()));
+
+        Personaje sel = null;
+        while (sel == null) {
+            System.out.print("  " + colorJ + "[" + jugador + "] ID del personaje (0-"
+                    + (seleccionables.size() - 1) + "): " + RESET);
+            try {
+                int idx = parseInt(sc.nextLine());
+                if (idx < 0 || idx >= seleccionables.size()) {
+                    System.out.println("  " + ROJO + "ID fuera de rango. Elige entre 0 y "
+                            + (seleccionables.size() - 1) + "." + RESET);
+                } else {
+                    sel = seleccionables.get(idx);
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("  " + ROJO + "Entrada no valida. Introduce un numero." + RESET);
+            }
+        }
+
         List<Personaje> eq = new ArrayList<>();
         eq.add(sel);
         if (sel instanceof Combatiente) ((Combatiente) sel).manifestarAura();
@@ -288,8 +336,12 @@ public class JuegoJJK {
         for (int i = 0; i < atacantes.size(); i++) {
             Personaje p = atacantes.get(i);
             if (p == null || !p.estaVivo()) continue;
+            // ARREGLO: capturar el estado ANTES de prepararTurno().
+            // prepararTurno() decrementa turnosInmovilizado; si era 1 pasaría a 0
+            // y la comprobación posterior nunca omitía el turno (1 turno = sin efecto).
+            boolean estabaInmovilizado = p.estaInmovilizado();
             p.prepararTurno();
-            if (p.turnosInmovilizado > 0) {
+            if (estabaInmovilizado) {
                 System.out.println("\n  " + ROJO + NEGRITA + "TURNO OMITIDO: " + RESET + ROJO
                         + p.getNombre() + " - " + NEGRITA + p.getCausaInmovilizacion() + RESET);
                 continue;
@@ -322,10 +374,20 @@ public class JuegoJJK {
     }
 
     private static boolean accion(int a, Personaje p, int idx, List<Personaje> atac,
-                                   List<Personaje> def, List<Personaje> todos, String jugDef) throws Exception {
+                                  List<Personaje> def, List<Personaje> todos, String jugDef) throws Exception {
         switch (a) {
             case 1: return habilidad(p, idx, atac, def, todos, jugDef);
-            case 2: p.ataqueBasico(primero(def)); checkNaoya(def, atac); return true;
+            case 2:
+                // ARREGLO: null-check para primero(def); aunque en condiciones normales
+                // nunca ocurre (el bucle de combate verifica equipoVivo), es buena práctica.
+                Personaje objetivo = primero(def);
+                if (objetivo == null) {
+                    System.out.println("  " + ROJO + "No hay rivales vivos." + RESET);
+                    return false;
+                }
+                p.ataqueBasico(objetivo);
+                checkNaoya(def, atac);
+                return true;
             case 3: p.setDefensa(true); System.out.println("  " + p.getNombre() + " se pone en guardia."); return true;
             case 4:
                 if (!p.puedeUsarEspeciales()) { System.out.println("  Sin energia maldita."); return false; }
@@ -338,7 +400,7 @@ public class JuegoJJK {
     }
 
     private static boolean habilidad(Personaje p, int idx, List<Personaje> atac,
-                                      List<Personaje> def, List<Personaje> todos, String jugDef) throws Exception {
+                                     List<Personaje> def, List<Personaje> todos, String jugDef) throws Exception {
         List<Habilidad> habs = p.getHabilidades();
         System.out.println("\n  " + CYAN + NEGRITA + "-- Habilidades de " + p.getNombre() + " --" + RESET);
         for (int j = 0; j < habs.size(); j++) {
@@ -348,8 +410,22 @@ public class JuegoJJK {
             System.out.println("  " + AMARILLO_INT + j + "." + RESET + " " + habs.get(j).getNombre() + c);
         }
         System.out.print("  " + BLANCO + "> Habilidad (0-" + (habs.size()-1) + ") o -1 para volver: " + RESET);
-        int habIdx = parseInt(sc.nextLine());
-        if (habIdx < 0 || habIdx >= habs.size()) return false;
+
+        int habIdx;
+        try {
+            habIdx = parseInt(sc.nextLine());
+        } catch (NumberFormatException e) {
+            System.out.println("  " + ROJO + "Entrada no valida." + RESET);
+            return false;
+        }
+
+        // ARREGLO: antes se retornaba false sin mensaje si el índice era inválido.
+        if (habIdx == -1) return false;
+        if (habIdx < 0 || habIdx >= habs.size()) {
+            System.out.println("  " + ROJO + "Indice de habilidad fuera de rango (0-"
+                    + (habs.size()-1) + ")." + RESET);
+            return false;
+        }
         Habilidad h = habs.get(habIdx);
 
         if (h.getNombre().equals("MAHORAGA")) {
@@ -357,20 +433,29 @@ public class JuegoJJK {
             atac.set(idx, mahoraga()); return true;
         }
         if (h.getNombre().equals("ESPADA DEL VERDUGO")) {
-            Personaje obj = primero(def); if (obj != null) ejecutarPena(obj); return true;
+            Personaje obj = primero(def);
+            if (obj != null) ejecutarPena(obj);
+            return true;
         }
 
         boolean esDominio = h.getNombre().contains("EXPANSI") || h.getNombre().contains("IDLE DEATH")
-                || h.getNombre().contains("AUTOENCARNACI") || h.getNombre().contains("ATA") && h.getNombre().contains("D DE LA");
+                || h.getNombre().contains("AUTOENCARNACI")
+                || (h.getNombre().contains("ATA") && h.getNombre().contains("D DE LA"));
 
         if (esDominio) {
             Personaje rival = primero(def);
+            if (rival == null) {
+                System.out.println("  " + ROJO + "No hay rival sobre el que expandir el dominio." + RESET);
+                return false;
+            }
             if (h.getNombre().contains("TRIBUNAL MALDITO")) {
                 resolverAcciones(p, habIdx, rival, new int[]{0,-1}, atac, def, idx, todos);
             } else {
                 resolverAcciones(p, habIdx, rival, pedirRespuesta(rival, jugDef), atac, def, idx, todos);
             }
-        } else { p.usarHabilidad(habIdx, primero(def)); }
+        } else {
+            p.usarHabilidad(habIdx, primero(def));
+        }
         checkNaoya(def, atac); checkNaoya(atac, def);
         return true;
     }
@@ -395,8 +480,13 @@ public class JuegoJJK {
                     for (int j = 0; j < habs.size(); j++)
                         System.out.println("  " + j + ". " + habs.get(j).getNombre() + " (CE:" + habs.get(j).getCosteEnergia() + ")");
                     System.out.print("  Habilidad: ");
-                    int h = parseInt(sc.nextLine());
-                    if (h >= 0 && h < habs.size()) return new int[]{1, h};
+                    try {
+                        int h = parseInt(sc.nextLine());
+                        if (h >= 0 && h < habs.size()) return new int[]{1, h};
+                        else System.out.println("  " + ROJO + "Indice fuera de rango." + RESET);
+                    } catch (NumberFormatException ex) {
+                        System.out.println("  " + ROJO + "Entrada no valida." + RESET);
+                    }
                 } else if (a == 2) { return new int[]{2,-1};
                 } else if (a == 3) { return new int[]{3,-1};
                 } else if (a == 4 && rival.puedeUsarEspeciales()) { return new int[]{4,-1};
@@ -423,9 +513,10 @@ public class JuegoJJK {
 
         boolean rivalDominio = resp[0] == 1 && resp[1] >= 0 && rival.estaVivo() && (
                 rival.getHabilidades().get(resp[1]).getNombre().contains("EXPANSI")
-                || rival.getHabilidades().get(resp[1]).getNombre().contains("IDLE DEATH")
-                || rival.getHabilidades().get(resp[1]).getNombre().contains("AUTOENCARNACI")
-                || rival.getHabilidades().get(resp[1]).getNombre().contains("ATA") && rival.getHabilidades().get(resp[1]).getNombre().contains("D DE LA"));
+                        || rival.getHabilidades().get(resp[1]).getNombre().contains("IDLE DEATH")
+                        || rival.getHabilidades().get(resp[1]).getNombre().contains("AUTOENCARNACI")
+                        || (rival.getHabilidades().get(resp[1]).getNombre().contains("ATA")
+                        && rival.getHabilidades().get(resp[1]).getNombre().contains("D DE LA")));
 
         System.out.println("\n" + MAGENTA + "=".repeat(54) + " RESOLUCION" + RESET);
         if (rivalDominio) {
@@ -489,7 +580,7 @@ public class JuegoJJK {
 
         for (int r = 1; r <= 3; r++) {
             int lon = 3 + r;
-            int[] sA = genSec(lon), sD = genSec(lon);
+            char[] sA = genSec(lon), sD = genSec(lon);
             System.out.println("\n  " + CYAN + NEGRITA + "== RONDA " + r + " ==" + RESET + CYAN + "  (" + lon + " digitos)" + RESET);
             System.out.println("  " + CYAN + "[" + nA + "] " + pA + " - " + pD + " [" + nD + "]" + RESET);
             boolean aA = secuencia(sA, atacante.getNombre(), nA, CYAN);
@@ -531,7 +622,7 @@ public class JuegoJJK {
     private static boolean tieneDominio(Personaje p) {
         return p.getHabilidades().stream().anyMatch(h -> h.getNombre().contains("EXPANSI")
                 || h.getNombre().contains("IDLE DEATH") || h.getNombre().contains("AUTOENCARNACI")
-                || h.getNombre().contains("ATA") && h.getNombre().contains("D DE LA"));
+                || (h.getNombre().contains("ATA") && h.getNombre().contains("D DE LA")));
     }
 
     // ═════════════════════════════════════════════════════════════════
@@ -571,10 +662,13 @@ public class JuegoJJK {
         System.out.println("\n  [" + jugador + "] Elige la defensa de " + personaje + ":");
 
         List<String> opts = new ArrayList<>(Arrays.asList(defCorr));
+        // ARREGLO: si hay menos de 3 crímenes, otros.get(0/1) lanzaba IndexOutOfBoundsException.
+        // Se rellena con la defensa correcta repetida si no hay suficientes alternativas.
         List<Integer> otros = new ArrayList<>();
         for (int k = 0; k < crimenes.length; k++) if (k != idx) otros.add(k);
         Collections.shuffle(otros);
-        opts.add(crimenes[otros.get(0)][1]); opts.add(crimenes[otros.get(1)][1]);
+        opts.add(otros.size() > 0 ? crimenes[otros.get(0)][1] : defCorr);
+        opts.add(otros.size() > 1 ? crimenes[otros.get(1)][1] : defCorr);
         Collections.shuffle(opts);
         int pos = opts.indexOf(defCorr);
         for (int k = 0; k < opts.size(); k++) System.out.println("  " + (k+1) + ". " + opts.get(k));
@@ -634,29 +728,74 @@ public class JuegoJJK {
     //  HELPERS
     // ═════════════════════════════════════════════════════════════════
 
-    private static int[] genSec(int n) {
-        int[] s = new int[n]; for (int i = 0; i < n; i++) s[i] = (int)(Math.random() * 4) + 1; return s;
+    // Alfabeto del choque: digitos 0-9 + letras A-Z (36 simbolos)
+    private static final char[] ALFABETO_SEC;
+    static {
+        StringBuilder ab = new StringBuilder();
+        for (char c = '0'; c <= '9'; c++) ab.append(c);
+        for (char c = 'A'; c <= 'Z'; c++) ab.append(c);
+        ALFABETO_SEC = ab.toString().toCharArray();
     }
 
-    private static boolean secuencia(int[] sec, String personaje, String jugador, String color) {
+    private static char[] genSec(int n) {
+        char[] s = new char[n];
+        for (int i = 0; i < n; i++) s[i] = ALFABETO_SEC[(int)(Math.random() * ALFABETO_SEC.length)];
+        return s;
+    }
+
+    private static boolean secuencia(char[] sec, String personaje, String jugador, String color) {
         System.out.println("\n  " + color + NEGRITA + "[" + jugador + "] - " + personaje + RESET);
-        System.out.print("  Enter para ver tu secuencia..."); sc.nextLine();
-        StringBuilder sb = new StringBuilder("  " + color + NEGRITA + "> ");
-        for (int d : sec) sb.append(d).append(" ");
+        StringBuilder sb = new StringBuilder("  " + color + NEGRITA + "> SECUENCIA: ");
+        for (char c : sec) sb.append(c).append(' ');
         System.out.println(sb + RESET);
-        System.out.print("  Memorizala y pulsa Enter..."); sc.nextLine();
-        for (int i = 0; i < 8; i++) System.out.println();
-        System.out.println("  " + ROJO_INT + NEGRITA + "*** ESCRIBE LOS DIGITOS ***" + RESET);
-        System.out.print("  " + color + "> (" + sec.length + " digitos, sin espacios): " + RESET);
-        String input = sc.nextLine().trim();
-        if (input.length() != sec.length) { System.out.println("  " + ROJO + "Longitud incorrecta." + RESET); return false; }
+
+        // ── Cuenta atrás ─────────────────────────────────────────────
+        // Polling de System.in.available() en el hilo principal: detecta Enter
+        // sin tocar el Scanner desde otro hilo (evita corrupción de buffer).
+        long fin = System.currentTimeMillis() + SEGUNDOS_SECUENCIA * 1000L;
+        boolean ocultadoManual = false;
+        while (System.currentTimeMillis() < fin) {
+            long restantes = (fin - System.currentTimeMillis() + 999) / 1000;
+            System.out.print("\r  " + AMARILLO + "Se oculta en " + restantes
+                    + "s  [Enter para ocultar ya]" + RESET + "   ");
+            System.out.flush();
+            try {
+                if (System.in.available() > 0) {
+                    // consumir todos los bytes pendientes (la línea del Enter)
+                    int b; do { b = System.in.read(); } while (b != -1 && b != '\n');
+                    ocultadoManual = true;
+                    break;
+                }
+                Thread.sleep(200);
+            } catch (Exception ignored) { break; }
+        }
+        // Salto de línea tras el \r del countdown + mensaje si expiró el tiempo
+        System.out.println();
+        if (!ocultadoManual) {
+            System.out.println("  " + ROJO_INT + NEGRITA + "Tiempo agotado!" + RESET);
+            try { Thread.sleep(500); } catch (Exception ignored) {}
+        }
+        limpiarConsola();
+
+        System.out.println("  " + color + NEGRITA + "[" + jugador + "] - " + personaje + RESET);
+        System.out.println("  " + ROJO_INT + NEGRITA + "*** ESCRIBE LA SECUENCIA DE MEMORIA (mayusculas) ***" + RESET);
+        System.out.print("  " + color + "> (" + sec.length + " caracteres, sin espacios): " + RESET);
+        // toUpperCase: el jugador puede escribir en minusculas y se acepta igual
+        String input = sc.nextLine().trim().toUpperCase();
+        if (input.length() != sec.length) {
+            System.out.println("  " + ROJO + "Longitud incorrecta (se esperaban " + sec.length + ")." + RESET);
+            return false;
+        }
         for (int i = 0; i < sec.length; i++) {
-            if ((input.charAt(i) - '0') != sec[i]) {
-                System.out.print("  " + ROJO + "Error en pos " + (i+1) + ". Correcta: ");
-                for (int d : sec) System.out.print(d); System.out.println(RESET); return false;
+            if (input.charAt(i) != sec[i]) {
+                System.out.print("  " + ROJO + "Error en pos " + (i+1) + ". Secuencia correcta: ");
+                for (char c : sec) System.out.print(c);
+                System.out.println(RESET);
+                return false;
             }
         }
-        System.out.println("  " + VERDE_INT + NEGRITA + "Correcto!" + RESET); return true;
+        System.out.println("  " + VERDE_INT + NEGRITA + "Correcto!" + RESET);
+        return true;
     }
 
     private static String nombreJugador(Personaje p) {
@@ -677,14 +816,18 @@ public class JuegoJJK {
     //  PERSONAJES ESPECIALES
     // ═════════════════════════════════════════════════════════════════
 
+    /**
+     * Devuelve una copia fresca de Mahoraga cargada desde personajes.csv (especial=true).
+     * Lanza RuntimeException si la fila no existe en el CSV.
+     */
     private static Personaje mahoraga() {
-        Personaje m = new Maldicion("Mahoraga (General Divino)", 800, 500);
-        m.addHabilidad(new Habilidad("Golpe Fisico",       "Ataque bruto",                      50,  0, Efecto.Tipo.NORMAL, true));
-        m.addHabilidad(new Habilidad("Adaptacion",         "Regeneracion rapida",                0, 50, Efecto.Tipo.NORMAL, false));
-        m.addHabilidad(new Habilidad("Tajo de Exterminio", "Instakill a cualquier Maldicion",  150,100, Efecto.Tipo.NORMAL, true));
-        m.addHabilidad(new Habilidad("Rafaga de golpes",   "Multigolpe",                        70, 20, Efecto.Tipo.NORMAL, true));
-        m.addHabilidad(new Habilidad("Embestida pesada",   "Danio puro",                        90, 30, Efecto.Tipo.NORMAL, true));
-        return m;
+        return catalogo.stream()
+                .filter(p -> p.getNombre().equals("Mahoraga (General Divino)"))
+                .findFirst()
+                .map(Personaje::clonar)
+                .orElseThrow(() -> new RuntimeException(
+                        "Mahoraga (General Divino) no encontrado en personajes.csv. "
+                                + "Aniade la fila con especial=true."));
     }
 
     private static void checkNaoya(List<Personaje> equipo, List<Personaje> rivales) {
@@ -692,41 +835,21 @@ public class JuegoJJK {
             Personaje p = equipo.get(i); if (p == null) continue;
             if (p.getNombre().equals("Naoya Zenin") && !p.estaVivo() && !p.ultimoGolpeFueEnergetico()) {
                 System.out.println("\n  " + ROJO + NEGRITA + "Naoya Zenin cae... RENACE COMO MALDICION!" + RESET);
-                Personaje nm = new Maldicion("Naoya Zenin (Maldicion)", 550, 0);
-                nm.addHabilidad(new Habilidad("Vortice Maldito",        "Aire corrompido con CE.",              95,0,Efecto.Tipo.NORMAL,    true));
-                nm.addHabilidad(new Habilidad("Ventilacion: Torbellino","Espiral de odio.",                    115,0,Efecto.Tipo.NORMAL,    true));
-                nm.addHabilidad(new Habilidad("Barrera Sonica Maldita", "Inmoviliza 2 turnos.",                 75,0,Efecto.Tipo.ATURDIDO,  true));
-                nm.addHabilidad(new Habilidad("Orgullo del Clan Zenin", "+100 HP y potenciado 2 turnos.",        0,0,Efecto.Tipo.POTENCIADO,false));
-                nm.addHabilidad(new Habilidad("TORMENTA FINAL: RENCOR", "No puede bloquearse ni esquivarse.",  190,0,Efecto.Tipo.NORMAL,    true));
-                equipo.set(i, nm);
+                // Forma transformada cargada desde personajes.csv (especial=true)
+                Personaje template = catalogo.stream()
+                        .filter(c -> c.getNombre().equals("Naoya Zenin (Maldicion)"))
+                        .findFirst()
+                        .orElse(null);
+                if (template == null) {
+                    System.out.println("  " + ROJO + "Naoya Zenin (Maldicion) no encontrado en personajes.csv: "
+                            + "Naoya no puede transformarse." + RESET);
+                    return;
+                }
+                equipo.set(i, template.clonar());
                 if (equipoActual1 == equipo) equipoActual1 = equipo;
                 if (equipoActual2 == equipo) equipoActual2 = equipo;
                 return;
             }
         }
-    }
-
-    private static void crimenesRespaldo() {
-        crimenes = new String[][]{
-            {"uso no autorizado de tecnica maldita en zona residencial",
-             "La tecnica fue activada involuntariamente al contacto con una maldicion de grado 2.", "1"},
-            {"participacion en mision de exorcismo sin acreditacion vigente",
-             "La acreditacion estaba en renovacion y actue bajo orden verbal de un supervisor.", "1"},
-            {"destruccion de infraestructura del Colegio Tecnico durante entrenamiento",
-             "Fue consecuencia de un ataque no provocado por otro alumno; actue en defensa propia.", "1"},
-            {"colaboracion con Kenjaku para suprimir la barrera de Shibuya",
-             "Fui manipulado mediante sustitucion de cuerpo; mis acciones no respondian a mi voluntad.", "2"},
-            {"liberacion del contenedor de Ryomen Sukuna durante combate activo",
-             "El contenedor fue danado por una maldicion de grado especial, no por accion propia.", "2"},
-            {"traicion al Colegio al facilitar informacion al Clan Kamo disidente",
-             "La informacion se transmitio bajo coercion mientras mis companeros eran retenidos.", "2"},
-            {"masacre del Hospital Eisei durante Shibuya bajo control de Sukuna",
-             "El cuerpo fue tomado involuntariamente por Sukuna; no existe intencionalidad de mi parte.", "3"},
-            {"conspiracion con Kenjaku para someter a la humanidad mediante Tengen",
-             "No existe prueba fisica de participacion activa; las ordenes vinieron de una entidad externa.", "3"},
-            {"apertura del Juego de la Culpa con mas de mil hechiceros muertos",
-             "La acusacion carece de testigos validos y la evidencia fue recopilada dentro del Juego.", "3"}
-        };
-        System.out.println(AMARILLO + "  crimenes.csv no encontrado; usando respaldo." + RESET);
     }
 }

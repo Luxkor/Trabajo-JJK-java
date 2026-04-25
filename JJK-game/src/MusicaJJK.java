@@ -8,17 +8,18 @@ public abstract class MusicaJJK {
     private static final String RUTA_CSV      = "data" + File.separator + "musica.csv";
     public  static final String CARPETA_AUDIO = "assets" + File.separator + "music" + File.separator;
 
-    // ── Colores ───────────────────────────────────────────────────────
-    private static final String RESET       = "\u001B[0m";
-    private static final String NEGRITA     = "\u001B[1m";
-    private static final String MAGENTA_INT = "\u001B[95m";
-    private static final String CYAN_INT    = "\u001B[96m";
-    private static final String AMARILLO    = "\u001B[33m";
-    private static final String VERDE       = "\u001B[32m";
-    private static final String ROJO        = "\u001B[31m";
-    private static final String BLANCO      = "\u001B[37m";
-    private static final String AZUL        = "\u001B[34m";
-    private static final String VERDE_INT   = "\u001B[92m";
+    // ── Colores (delegados a Colores.java para evitar duplicación) ────
+    // ARREGLO: antes estas constantes duplicaban literales ANSI hardcodeados.
+    private static final String RESET       = Colores.RESET;
+    private static final String NEGRITA     = Colores.NEGRITA;
+    private static final String MAGENTA_INT = Colores.MAGENTA_INT;
+    private static final String CYAN_INT    = Colores.CYAN_INT;
+    private static final String AMARILLO    = Colores.AMARILLO;
+    private static final String VERDE       = Colores.VERDE;
+    private static final String ROJO        = Colores.ROJO;
+    private static final String BLANCO      = Colores.BLANCO;
+    private static final String AZUL        = Colores.AZUL;
+    private static final String VERDE_INT   = Colores.VERDE_INT;
 
     // ── Modelo de una pista ───────────────────────────────────────────
     protected static class Pista {
